@@ -1,0 +1,2 @@
+fc6d49,127.0.0.1,GET,http://127.0.0.1:8000/api/v1/images/automatic-alts,1686410233,70daa6,500
+70daa6,127.0.0.1,POST,http://127.0.0.1:8000/api/v1/images/automatic-alts,1686410233,,500
