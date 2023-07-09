@@ -34,76 +34,87 @@ class ShoperController extends AbstractController
 {
     #[Route('/api/v1/products/descriptions', name: 'api_v1_descriptions')]
     public function descriptions(Request $request, ShoperDesc $shoperDesc): JsonResponse
-    {
-        if ($request->isMethod('SET')) {
-            $productId = $request->request->get('product_name');
-            $productName = $this->getProductNameFromCSV($productId);
-            $opis = $description->getDescription($productName);
-            
-            
-            foreach ($opisy as $fragmentNazwy => $opis) {
-                if (strpos($productName, $fragmentNazwy) !== false) {
-                    $description = "<p>$opis</p>";
-                    break;
-                }
+{
+    // Pobranie danych z żądania POST
+    if ($request->isMethod('POST')) {
+        $productIdFromShoper = $request->request->get('product_id');
+
+        // Pobranie nazwy produktu z pliku CSV na podstawie ID produktu z Shoper
+        $productName = $this->getProductNameFromCSV($productIdFromShoper);
+
+        // Pobranie ID produktu z pliku CSV na podstawie nazwy produktu
+        $productIdFromCSV = $this->getProductIdFromCSV($productName);
+
+        // Sprawdzenie, czy ID produktu z Shoper i z pliku CSV się zgadzają
+        if ($productIdFromShoper != $productIdFromCSV) {
+            throw new \Exception('Product ID mismatch');
+        }
+
+        // Generowanie opisu na podstawie fragmentu nazwy produktu
+        $opis = $shoperDesc->getDescription($productName);
+
+        // Wyszukiwanie dopasowania opisu do fragmentu nazwy
+        foreach ($opis as $fragmentNazwy => $opisProduktu) {
+            if (strpos($productName, $fragmentNazwy) !== false) {
+                $description = "<p>$opisProduktu</p>";
+                break;
             }
         }
-            $client = HttpClient::create();
-            $response = $client->request('PUT', 'https://devshop-544897.shoparena.pl/webapi/rest/products/'.$productId.'/description', [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer '.$accessToken,
-                ],
-                'json' => [
-                    'description' => $description,
-                ],
-            ]);
 
-            $statusCode = $response->getStatusCode();
+        // Wysłanie opisu do Shoper za pomocą API
+        $accessToken = $this->getAccessToken();
 
-            if ($statusCode === 200) {
-                return new JsonResponse(['success' => true], $statusCode);
-            } else {
-                return new JsonResponse(['success' => false], $statusCode);
-            }
-        return new JsonResponse(['error' => 'Invalid request method'], 400);
-    }
-    private function getProductNameFromCSV(int $productId): string
-    {
-        $csvFile = 'nazwa_pliku.csv';
-        $csvReader = new CsvReader($csvFile);
-
-        // Przeszukaj plik CSV w poszukiwaniu odpowiedniego identyfikatora produktu
-        foreach ($csvReader as $row) {
-            if ($row[0] == $productId) {
-                return $row[1]; // Pobierz nazwę produktu
-            }
-        }
-          // Jeśli nie znaleziono produktu o podanym identyfikatorze, zwróć pusty ciąg znaków lub obsłuż błąd
-          throw new \Exception('Product not found');
-    }
-
-    private function getAccessToken(): string
-    {
         $client = HttpClient::create();
-
-        $response = $client->request('POST', 'https://devshop-544897.shoparena.pl/webapi/rest/auth', [
+        $response = $client->request('PUT', 'https://devshop-544897.shoparena.pl/webapi/rest/products/'.$productIdFromShoper.'/description', [
             'headers' => [
-                'Authorization' => 'Basic '.base64_encode('admin:Skyen12#'),
                 'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer '.$accessToken,
+            ],
+            'json' => [
+                'description' => $description,
             ],
         ]);
 
         $statusCode = $response->getStatusCode();
 
         if ($statusCode === 200) {
-            $content = $response->getContent();
-            $data = json_decode($content, true);
-            $accessToken = $data['access_token'];
-            return $accessToken;
+            return new JsonResponse(['success' => true], $statusCode);
         } else {
-            throw new \Exception('Nie udało się uzyskać access tokena');
+            return new JsonResponse(['success' => false], $statusCode);
         }
     }
-}    
-?>
+
+    return new JsonResponse(['error' => 'Invalid request method'], 400);
+}
+
+private function getProductNameFromCSV(int $productIdFromShoper): string
+{
+    $csvFile = 'nazwa_pliku.csv';
+    $csvReader = new CsvReader($csvFile);
+
+    // Przeszukaj plik CSV w poszukiwaniu odpowiedniego identyfikatora produktu z Shoper
+    foreach ($csvReader as $row) {
+        if ($row[0] == $productIdFromShoper) {
+            return $row[1]; // Pobierz nazwę produktu
+        }
+    }
+
+    // Jeśli nie znaleziono produktu o podanym identyfikatorze, zwróć pusty ciąg znaków lub obsłuż błąd
+    throw new \Exception('Product not found');
+}
+
+private function getProductIdFromCSV(string $productName): int
+{
+    $csvFile = 'nazwa_pliku.csv';
+    $csvReader = new CsvReader($csvFile);
+
+    // Przeszukaj plik CSV w poszukiwaniu odpowiedniej nazwy produktu
+    foreach ($csvReader as $row) {
+        if ($row[1] == $productName) {
+            return $row[0]; // Pobierz ID produktu
+        }
+    }
+
+    // Jeśli nie znaleziono produktu o podanej nazwie, zwróć 0 lub obsłuż błąd
+    throw new \Exception('Product not found');
+}
